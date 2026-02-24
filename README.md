@@ -2,9 +2,22 @@
 
 `악! 기합 해병이 되고 싶어!`는 해병 언어 기반으로 작성된 프로그래밍 언어입니다.
 
-## 실행 방법
+## 실행 방법 (온라인)
 
-[악! 기합 해병이 되고 싶어! 인터프리터](https://secret-joojoo.github.io/marine-lang/)
+[악! 기합 해병이 되고 싶어! 실행 사이트](https://secret-joojoo.github.io/marine-lang/)
+
+## 실행 방법 (로컬 환경)
+
+1. 터미널에서 다음 명령어를 입력합니다.
+```
+    git clone https://secret-joojoo.github.io/marine-lang/
+```
+2. `/root`에 `main.ak`를 만듭니다.
+3. `main.ak`에 코드를 입력합니다.
+4. `/root`에서 다음 명령어를 입력합니다.
+```
+    python interpreter.py main.ak
+```
 
 ## 문법 설명
 
