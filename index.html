@@ -94,137 +94,34 @@
 
     <script>
         let pyodide;
+        let interpreterCode = "";
 
-        // Pyodide 초기화
         async function main() {
             pyodide = await loadPyodide();
-            document.getElementById("runBtn").disabled = false;
-            document.getElementById("runBtn").innerText = "실행하기";
+            
+            try {
+                const response = await fetch('./interpreter.py');
+                if (!response.ok) throw new Error("인터프리터 파일을 찾을 수 없다!");
+                
+                let rawCode = await response.text();
+                
+                // [기합찬 팁] 웹 환경에서는 CLI 실행 블록이 돌면 프로그램이 뻗어버리니까, 
+                // if __name__ == "__main__": 부분을 if False: 로 치환해서 강제로 비활성화한다!
+                interpreterCode = rawCode.replace('if __name__ == "__main__":', 'if False:');
+                
+                document.getElementById("runBtn").disabled = false;
+                document.getElementById("runBtn").innerText = "실행한다!";
+            } catch (e) {
+                document.getElementById("runBtn").innerText = "로딩 실패! 기열!";
+                console.error("인터프리터 로드 에러:", e);
+                document.getElementById("output").innerText = "인터프리터를 불러오지 못했다! 기열!";
+            }
         }
         main();
 
-        // 파이썬 실행 환경 정의
-        const pythonInterpreterCode = `
+        const webWrapperCode = `
 import sys
 import io
-
-class MarineLangInterpreter:
-    def __init__(self, code: str):
-        self.code = code
-        self.tokens = []
-        self._tokenize()
-        self.variables = {'아쎄이': 0}
-        self.var_count = 0
-        self.jumps = {}
-        self._precompute_jumps()
-
-    def _tokenize(self):
-        for line_num, line in enumerate(self.code.splitlines(), start=1):
-            for word in line.split():
-                self.tokens.append((word, line_num))
-
-    def _precompute_jumps(self):
-        stack = []
-        for i, (token, line_num) in enumerate(self.tokens):
-            if token == '필승':
-                if i >= 2 and self.tokens[i-2][0] == '여쭤봐도':
-                    stack.append(('IF', i, line_num))
-                elif i >= 2 and self.tokens[i-2][0] == '다시':
-                    stack.append(('WHILE', i, line_num))
-                else:
-                    raise SyntaxError(f"[줄 {line_num}] 구문 오류: '필승' 앞에는 '여쭤봐도 되겠습니까' 또는 '다시 알아보겠습니다'가 와야 합니다.")
-            elif token == '받아쓰':
-                if not stack:
-                    raise SyntaxError(f"[줄 {line_num}] 구문 오류: '받아쓰'에 대응하는 '필승'이 없습니다.")
-                block_type, start_idx, start_line = stack.pop()
-                self.jumps[start_idx] = i
-                self.jumps[i] = start_idx
-        
-        if stack:
-            block_type, start_idx, start_line = stack.pop()
-            raise SyntaxError(f"[줄 {start_line}] 구문 오류: '필승'에 대응하는 '받아쓰'가 닫히지 않았습니다.")
-
-    def _parse_number(self, s: str, line_num: int) -> int:
-        is_negative = s.startswith('아')
-        if is_negative:
-            s = s[1:]
-        if not s or not s.startswith('악'):
-            return 0
-        parts = s.split('악')[1:]
-        digits = [str(len(p)) for p in parts]
-        try:
-            val = int("".join(digits))
-            return -val if is_negative else val
-        except ValueError:
-            return 0
-
-    def run(self):
-        pc = 0
-        while pc < len(self.tokens):
-            token, line_num = self.tokens[pc]
-            try:
-                if token == '신병' and pc + 2 < len(self.tokens) and self.tokens[pc+1][0] == '받아라':
-                    val = self._parse_number(self.tokens[pc+2][0], line_num)
-                    self.var_count += 1
-                    var_name = '아쎄이' + ('!' * self.var_count)
-                    self.variables[var_name] = val
-                    pc += 3
-                    continue
-                if token == '헤이빠빠리빠':
-                    user_input = sys.stdin.readline().strip()
-                    try:
-                        self.variables['아쎄이'] = int(user_input)
-                    except ValueError:
-                        pass
-                    pc += 1
-                    continue
-                if token == '라이라이' and pc + 1 < len(self.tokens) and self.tokens[pc+1][0] == '차차차':
-                    val = self.variables.get('아쎄이', 0)
-                    try:
-                        print(chr(val), end='', flush=True)
-                    except ValueError:
-                        print(f"\\n[줄 {line_num}] 런타임 오류: 출력할 수 없는 유니코드 값입니다.")
-                    pc += 2
-                    continue
-                if pc + 2 < len(self.tokens) and self.tokens[pc+1][0] == '여쭤봐도' and self.tokens[pc+2][0] == '되겠습니까':
-                    var_name = token
-                    val = self.variables.get(var_name, 0)
-                    if val == 0:
-                        pc = self.jumps[pc+3] + 1
-                    else:
-                        pc += 4
-                    continue
-                if pc + 2 < len(self.tokens) and self.tokens[pc+1][0] == '다시' and self.tokens[pc+2][0] == '알아보겠습니다':
-                    var_name = token
-                    val = self.variables.get(var_name, 0)
-                    if val == 0:
-                        pc = self.jumps[pc+3] + 1
-                    else:
-                        pc += 4
-                    continue
-                if token == '받아쓰':
-                    start_idx = self.jumps[pc]
-                    if self.tokens[start_idx-2][0] == '다시':
-                        pc = start_idx - 3
-                    else:
-                        pc += 1
-                    continue
-                if pc + 2 < len(self.tokens) and self.tokens[pc+2][0] in ('돌격', '역돌격'):
-                    var1 = token
-                    var2 = self.tokens[pc+1][0]
-                    op = self.tokens[pc+2][0]
-                    val1 = self.variables.get(var1, 0)
-                    val2 = self.variables.get(var2, 0)
-                    if op == '돌격':
-                        self.variables[var1] = val1 + val2
-                    else:
-                        self.variables[var1] = val1 - val2
-                    pc += 3
-                    continue
-                pc += 1
-            except Exception as e:
-                print(f"\\n[줄 {line_num}] 실행 중 알 수 없는 오류 발생: {e}")
-                break
 
 def run_in_browser(code_str, input_str):
     old_stdout = sys.stdout
@@ -245,7 +142,6 @@ def run_in_browser(code_str, input_str):
     return result
 `;
 
-        // 버튼 클릭 이벤트 처리
         document.getElementById("runBtn").addEventListener("click", async () => {
             const codeStr = document.getElementById("code").value;
             const inputStr = document.getElementById("input_data").value;
@@ -254,16 +150,13 @@ def run_in_browser(code_str, input_str):
             outputDiv.innerHTML = "<span class='loading'>실행 중...</span>";
 
             try {
-                // 파이썬 환경에 클래스 및 실행 함수 로드
-                await pyodide.runPythonAsync(pythonInterpreterCode);
+                await pyodide.runPythonAsync(interpreterCode + "\n\n" + webWrapperCode);
                 
-                // 자바스크립트 변수를 파이썬 함수로 전달하여 실행
                 const runFunc = pyodide.globals.get('run_in_browser');
                 const result = runFunc(codeStr, inputStr);
                 
                 outputDiv.innerText = result;
                 
-                // 메모리 누수 방지
                 runFunc.destroy();
             } catch (err) {
                 outputDiv.innerText = "시스템 오류:\n" + err;
