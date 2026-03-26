@@ -6,19 +6,19 @@ from interpreter import MarineLangInterpreter, MarineError
 
 def run_all_tests(test_dir="tests"):
     if not os.path.exists(test_dir):
-        print(f"흥! '{test_dir}' 폴더가 없잖아! 바보 아니야? 빨리 만들기나 해!")
+        print(f"'{test_dir}' 폴더 없음.")
         return
 
     test_files = glob.glob(os.path.join(test_dir, "*.ak"))
     if not test_files:
-        print(f"새끼... 기열! '{test_dir}' 폴더에 .ak 파일이 하나도 없잖아! 당장 작성해!")
+        print(f"'{test_dir}' 폴더에 .ak 파일 없음.")
         return
 
     passed = 0
     failed = 0
 
     print("===" * 15)
-    print("오도기합짜세 해병 테스트")
+    print("기합 해병 테스트!!")
     print("===" * 15)
 
     for ak_file in sorted(test_files):
@@ -27,7 +27,7 @@ def run_all_tests(test_dir="tests"):
         in_file = base_name + ".in"
 
         if not os.path.exists(out_file):
-            print(f"⚠️ [경고] {os.path.basename(out_file)} 파일이 없어! 테스트를 건너뛴다! 기열!")
+            print(f"⚠️ [경고] {os.path.basename(out_file)} 파일 없음. => 테스트 건너뜀.")
             continue
 
         with open(out_file, 'r', encoding='utf-8') as f:
@@ -68,7 +68,7 @@ def run_all_tests(test_dir="tests"):
             failed += 1
 
     print("===" * 15)
-    print(f"최종 결과: {passed} 기합, {failed} 찐빠")
+    print(f"최종 결과: {passed} 기합, {failed} 기열")
     print("===" * 15)
 
 if __name__ == "__main__":
