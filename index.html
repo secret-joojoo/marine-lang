@@ -103,6 +103,13 @@
                 const response = await fetch('./interpreter.py');
                 if (!response.ok) throw new Error("인터프리터 파일을 찾을 수 없다!");
                 
+                // 1. 서버(Live Server)로부터 supply.py 파일의 내용을 비동기로 가져오기
+                const supplyResponse = await fetch('supply.py');
+                const supplyCode = await supplyResponse.text();
+
+                // 2. Pyodide의 가상 파일 시스템(FS)에 supply.py 파일 써주기 (핵심!)
+                pyodide.FS.writeFile('supply.py', supplyCode);
+
                 let rawCode = await response.text();
                 
                 // [기합찬 팁] 웹 환경에서는 CLI 실행 블록이 돌면 프로그램이 뻗어버리니까, 
