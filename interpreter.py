@@ -124,7 +124,7 @@ class MarineLangInterpreter:
                 # 1. 변수 선언: 신병 받아라 (정수)
                 if token == '신병' and pc + 1 < len(self.tokens) and self.tokens[pc+1][0] == '받아라':
                     if pc + 2 >= len(self.tokens):
-                        raise MarineError(f"[줄 {line_num}] 구문 오류: '신병 받아라' 뒤에 정수가 오지 않았다!")
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '신병 받아라' 뒤에 해병 정수가 오지 않았다!")
                     
                     val_token = self.tokens[pc+2][0]
                     # 정수 형태인지 1차 검사
