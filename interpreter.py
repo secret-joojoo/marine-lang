@@ -1,4 +1,5 @@
 import sys
+from supply import SupplyManager
 
 class MarineError(Exception):
     """해병 언어 실행 중 발생하는 오도기합짜세 에러"""
@@ -13,6 +14,7 @@ class MarineLangInterpreter:
         self.variables = {'아쎄이': 0}
         self.var_count = 0
         self.jumps = {}
+        self.supply = SupplyManager(MarineError)
         self._precompute_jumps()
 
     def _tokenize(self):
@@ -114,6 +116,14 @@ class MarineLangInterpreter:
         if var_name not in self.variables:
             raise MarineError(f"[줄 {line_num}] 런타임 오류: 선언되지 않은 변수를 사용했다! 미확인 인원 접근!")
 
+    def _get_value(self, token: str, line_num: int) -> int:
+        """토큰이 변수면 값을 꺼내오고, 정수면 파싱해서 가져온다!"""
+        if token.startswith('아쎄이'):
+            self._check_variable(token, line_num)
+            return self.variables[token]
+        else:
+            return self._parse_number(token, line_num)
+
     def run(self):
         """인터프리터 실행 (돌격!)"""
         pc = 0
@@ -206,6 +216,67 @@ class MarineLangInterpreter:
                     else:
                         self.variables[var1] = val1 - val2
                     pc += 3
+                    continue
+
+                # 8. 보급병 명령어 처리: 보급병! ~
+                if token == '보급병!':
+                    if pc + 1 >= len(self.tokens):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: 보급병 명령어가 불완전하다!")
+                    
+                    cmd1 = self.tokens[pc+1][0]
+                    
+                    if cmd1 == '과업':
+                        if pc + 2 >= len(self.tokens) or self.tokens[pc+2][0] != '준비!':
+                            raise MarineError(f"[줄 {line_num}] 구문 오류: '과업' 뒤에는 '준비!'가 와야 한다!")
+                        self.supply.prepare()
+                        pc += 3
+                        continue
+                        
+                    elif cmd1 == '창고로':
+                        if pc + 2 >= len(self.tokens) or self.tokens[pc+2][0] != '이동':
+                            raise MarineError(f"[줄 {line_num}] 구문 오류: '창고로' 뒤에는 '이동'이 와야 한다!")
+                        self.supply.move_to_warehouse(line_num)
+                        pc += 3
+                        continue
+                        
+                    elif pc + 2 < len(self.tokens) and self.tokens[pc+2][0] == '관리하겠습니다':
+                        if pc + 4 >= len(self.tokens):
+                            raise MarineError(f"[줄 {line_num}] 구문 오류: '관리하겠습니다' 뒤에 값 2개가 필요하다!")
+                        warehouse = cmd1
+                        val1_token = self.tokens[pc+3][0]
+                        val2_token = self.tokens[pc+4][0]
+                        
+                        val1 = self._get_value(val1_token, line_num)
+                        val2 = self._get_value(val2_token, line_num)
+                        
+                        self.supply.manage_warehouse(warehouse, val1, val2, line_num)
+                        pc += 5
+                        continue
+                        
+                    elif pc + 2 < len(self.tokens) and self.tokens[pc+2][0] == '정리하겠습니다':
+                        warehouse = cmd1
+                        self.supply.clear_warehouse(warehouse, line_num)
+                        pc += 3
+                        continue
+                        
+                    else:
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: 올바르지 않은 보급병 명령어다! 기열!")
+
+                # 9. 보급병 창고 조사: (변수) (창고) 조사하겠습니다 (정수/변수)
+                if pc + 2 < len(self.tokens) and self.tokens[pc+2][0] == '조사하겠습니다':
+                    if pc + 3 >= len(self.tokens):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '조사하겠습니다' 뒤에 조사할 인덱스 값이 필요하다!")
+                        
+                    target_var = token
+                    warehouse = self.tokens[pc+1][0]
+                    val_token = self.tokens[pc+3][0]
+                    
+                    self._check_variable(target_var, line_num)
+                    idx_val = self._get_value(val_token, line_num)
+                    result = self.supply.investigate_warehouse(warehouse, idx_val, line_num)
+                    
+                    self.variables[target_var] = result
+                    pc += 4
                     continue
                     
                 # 처리되지 않은 토큰은 건너뜀

@@ -57,7 +57,6 @@ def run_tests(test_dir="tests"):
                 sys.stdin = old_stdin
             
             if actual_output == expected_output:
-                print(f"✅ {os.path.basename(ak_file)}: 기합!")
                 passed += 1
             else:
                 print(f"❌ {os.path.basename(ak_file)}: 기열!")
@@ -68,16 +67,18 @@ def run_tests(test_dir="tests"):
         module_result[module] = (passed, failed)
         total_passed += passed
         total_failed += failed
+        if failed == 0:
+            print(f"✅ {module.upper()} 기합!")
     
     print("\n" + "===" * 15)
     print("기합 해병 테스트 결과 보고")
     print("===" * 15)
 
     for module, (passed, failed) in module_result.items():
-        print(f"[{module.upper()}\t\t기합: {passed}개,\t기열: {failed}개]")
+        print(f"{module.upper()}\t\t기합: {passed}개,\t기열: {failed}개")
 
     print("===" * 15)
-    print(f"최종 결과:\t기합: {total_passed}개,\t기열: {total_failed}개")
+    print(f"최종 결과\t기합: {total_passed}개,\t기열: {total_failed}개")
     print("===" * 15)
 
 
