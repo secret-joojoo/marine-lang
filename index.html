@@ -1,37 +1,505 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="red-yellow">
 <head>
     <meta charset="UTF-8">
-    <title>악! 기합 해병이 되고 싶어! - 웹 컴파일러</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>악! 기합 해병이 되고 싶어! - 온라인 컴파일러</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <style>
-        body { font-family: sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        h1 { color: #8B0000; }
-        
-        /* 좌우 분할을 위한 Flexbox 레이아웃 설정 */
-        .layout-container { display: flex; gap: 20px; align-items: stretch; }
-        .left-panel, .right-panel { flex: 1; display: flex; flex-direction: column; }
-        
-        textarea { width: 100%; font-family: monospace; font-size: 14px; padding: 10px; box-sizing: border-box; resize: vertical; }
-        #code { flex-grow: 1; min-height: 300px; }
-        #input_data { height: 60px; }
-        #output { background-color: #f4f4f4; border: 1px solid #ccc; padding: 10px; flex-grow: 1; min-height: 350px; white-space: pre-wrap; font-family: monospace; overflow-y: auto; }
-        
-        button { background-color: #8B0000; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; margin: 10px 0; align-self: flex-start; }
-        button:hover { background-color: #a50000; }
-        .loading { color: #666; font-style: italic; }
+        @import url('https://cdn.jsdelivr.net/gh/joungkyun/font-d2coding/d2coding.css');
+
+        /* ═══════════════════════════════════════════════════════
+           테마 변수
+        ═══════════════════════════════════════════════════════ */
+        :root,
+        [data-theme="red-yellow"] {
+            --c-bg:            #F2EDD8;
+            --c-header-bg:     #5C0000;
+            --c-header-text:   #FFD700;
+            --c-accent:        #D4A017;
+            --c-primary:       #8B0000;
+            --c-surface:       #FAF5E4;
+            --c-surface2:      #EDE6CC;
+            --c-gutter-bg:     #E8D898;
+            --c-gutter-text:   #7A5E10;
+            --c-border:        #C49828;
+            --c-text:          #150800;
+            --c-text-muted:    #5A3A10;
+            --c-btn:           #7A0000;
+            --c-btn-text:      #FFD700;
+            --c-btn-hover:     #990000;
+            --c-btn-run-bg:    #D4A017;
+            --c-btn-run-text:  #150800;
+            --c-handle:        #B08820;
+            --c-handle-hover:  #8B6A10;
+            --c-ph-bg:         #6B0000;
+            --c-ph-text:       #FFD700;
+            --c-output-bg:     #F5F0E2;
+            --c-scrollbar:     #C49828;
+            --c-loading:       #7A6000;
+            --c-select-bg:     rgba(0,0,0,0.40);
+        }
+
+        [data-theme="red-dark"] {
+            --c-bg:            #0E0E0E;
+            --c-header-bg:     #161616;
+            --c-header-text:   #FF4422;
+            --c-accent:        #CC3311;
+            --c-primary:       #AA2200;
+            --c-surface:       #1C1C1C;
+            --c-surface2:      #242424;
+            --c-gutter-bg:     #202020;
+            --c-gutter-text:   #606060;
+            --c-border:        #383838;
+            --c-text:          #E2E2E2;
+            --c-text-muted:    #989898;
+            --c-btn:           #8B1A00;
+            --c-btn-text:      #FFFFFF;
+            --c-btn-hover:     #AA2200;
+            --c-btn-run-bg:    #CC3311;
+            --c-btn-run-text:  #FFFFFF;
+            --c-handle:        #363636;
+            --c-handle-hover:  #505050;
+            --c-ph-bg:         #161616;
+            --c-ph-text:       #FF4422;
+            --c-output-bg:     #181818;
+            --c-scrollbar:     #404040;
+            --c-loading:       #909090;
+            --c-select-bg:     rgba(0,0,0,0.60);
+        }
+
+        [data-theme="cherry-cream"] {
+            --c-bg:            #F2EDE0;
+            --c-header-bg:     #6E1026;
+            --c-header-text:   #EEE4CA;
+            --c-accent:        #A82030;
+            --c-primary:       #8B1530;
+            --c-surface:       #F7F2E6;
+            --c-surface2:      #EDE6D4;
+            --c-gutter-bg:     #E6DCCA;
+            --c-gutter-text:   #7A5840;
+            --c-border:        #C8A880;
+            --c-text:          #1A0A06;
+            --c-text-muted:    #5C3828;
+            --c-btn:           #7A1228;
+            --c-btn-text:      #EEE4CA;
+            --c-btn-hover:     #9B1830;
+            --c-btn-run-bg:    #A82030;
+            --c-btn-run-text:  #EEE4CA;
+            --c-handle:        #C0A078;
+            --c-handle-hover:  #A08060;
+            --c-ph-bg:         #6E1026;
+            --c-ph-text:       #EEE4CA;
+            --c-output-bg:     #EEE8D8;
+            --c-scrollbar:     #C8A880;
+            --c-loading:       #7A5840;
+            --c-select-bg:     rgba(0,0,0,0.35);
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           리셋 & 기본
+        ═══════════════════════════════════════════════════════ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+            background: var(--c-bg);
+            color: var(--c-text);
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           앱 루트
+        ═══════════════════════════════════════════════════════ */
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           헤더
+        ═══════════════════════════════════════════════════════ */
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--c-header-bg);
+            color: var(--c-header-text);
+            padding: 0 16px;
+            height: 50px;
+            flex-shrink: 0;
+            border-bottom: 3px solid var(--c-accent);
+            gap: 16px;
+        }
+
+        .app-title {
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            white-space: nowrap;
+            color: var(--c-header-text);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        .toolbar-label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--c-header-text);
+            white-space: nowrap;
+            opacity: 0.85;
+            letter-spacing: 0.5px;
+        }
+
+        .toolbar-select {
+            background: var(--c-select-bg);
+            color: var(--c-header-text);
+            border: 1px solid var(--c-accent);
+            padding: 3px 6px;
+            font-size: 11px;
+            cursor: pointer;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .toolbar-sep {
+            width: 1px;
+            height: 20px;
+            background: var(--c-accent);
+            opacity: 0.4;
+            flex-shrink: 0;
+            margin: 0 2px;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           버튼 공통
+        ═══════════════════════════════════════════════════════ */
+        .btn {
+            background: var(--c-btn);
+            color: var(--c-btn-text);
+            border: 1px solid var(--c-accent);
+            padding: 5px 11px;
+            font-size: 12px;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            transition: background 0.12s;
+        }
+        .btn:hover:not(:disabled) { background: var(--c-btn-hover); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .btn-run {
+            background: var(--c-btn-run-bg);
+            color: var(--c-btn-run-text);
+            font-size: 13px;
+            font-weight: 900;
+            padding: 5px 16px;
+            border: 2px solid var(--c-accent);
+            letter-spacing: 1px;
+        }
+        .btn-run:hover:not(:disabled) { filter: brightness(1.18); }
+
+        .btn-music {
+            font-size: 11px;
+            padding: 4px 9px;
+            letter-spacing: 0.3px;
+            opacity: 0.92;
+        }
+        .btn-music.playing {
+            animation: music-pulse 0.9s ease-in-out infinite alternate;
+        }
+        @keyframes music-pulse {
+            from { filter: brightness(1.0); }
+            to   { filter: brightness(1.4); }
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           작업 영역
+        ═══════════════════════════════════════════════════════ */
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           패널 공통
+        ═══════════════════════════════════════════════════════ */
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .pane-header {
+            background: var(--c-ph-bg);
+            color: var(--c-ph-text);
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2.5px;
+            flex-shrink: 0;
+            border-bottom: 2px solid var(--c-accent);
+            user-select: none;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           왼쪽 패널 — 코드 에디터
+        ═══════════════════════════════════════════════════════ */
+        .pane-left {
+            width: 62%;
+            min-width: 180px;
+            border-right: 3px solid var(--c-border);
+        }
+
+        .editor-wrap {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .gutter {
+            background: var(--c-gutter-bg);
+            color: var(--c-gutter-text);
+            padding: 10px 10px 10px 6px;
+            text-align: right;
+            font-family: 'D2Coding', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            user-select: none;
+            overflow: hidden;
+            min-width: 44px;
+            flex-shrink: 0;
+            border-right: 1px solid var(--c-border);
+        }
+
+        .gutter-line { line-height: 1.5; }
+
+        #code {
+            flex: 1;
+            min-width: 0;
+            resize: none;
+            border: none;
+            outline: none;
+            padding: 10px;
+            font-family: 'D2Coding', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--c-surface);
+            color: var(--c-text);
+            overflow: auto;
+            tab-size: 4;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           드래그 핸들
+        ═══════════════════════════════════════════════════════ */
+        .resize-v {
+            width: 5px;
+            background: var(--c-handle);
+            cursor: col-resize;
+            flex-shrink: 0;
+            transition: background 0.12s;
+        }
+        .resize-v:hover,
+        .resize-v.active { background: var(--c-handle-hover); }
+
+        .resize-h {
+            height: 5px;
+            background: var(--c-handle);
+            cursor: row-resize;
+            flex-shrink: 0;
+            transition: background 0.12s;
+        }
+        .resize-h:hover,
+        .resize-h.active { background: var(--c-handle-hover); }
+
+        /* ═══════════════════════════════════════════════════════
+           오른쪽 패널
+        ═══════════════════════════════════════════════════════ */
+        .pane-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 160px;
+            overflow: hidden;
+        }
+
+        .pane-input {
+            height: 28%;
+            min-height: 72px;
+            border-bottom: 3px solid var(--c-border);
+        }
+
+        #input_data {
+            flex: 1;
+            resize: none;
+            border: none;
+            outline: none;
+            padding: 10px;
+            font-family: 'D2Coding', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--c-surface2);
+            color: var(--c-text);
+            width: 100%;
+        }
+
+        #input_data::placeholder { color: var(--c-text-muted); opacity: 0.6; }
+
+        .pane-output { flex: 1; min-height: 0; }
+
+        #output {
+            flex: 1;
+            padding: 10px;
+            font-family: 'D2Coding', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--c-output-bg);
+            color: var(--c-text);
+            white-space: pre-wrap;
+            overflow-y: auto;
+            word-break: break-all;
+        }
+
+        .loading { color: var(--c-loading); font-style: italic; }
+
+        /* ═══════════════════════════════════════════════════════
+           스크롤바
+        ═══════════════════════════════════════════════════════ */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: var(--c-scrollbar);
+            border-radius: 0;
+        }
+        ::-webkit-scrollbar-thumb:hover { filter: brightness(1.25); }
     </style>
 </head>
 <body>
+<div class="app">
 
-    <h1>악! 기합 해병이 되고 싶어!</h1>
-    <p>웹 브라우저에서 직접 코드를 실행해 보세요.</p>
+    <!-- ── 헤더 ──────────────────────────────────────────────── -->
+    <header class="app-header">
+        <span class="app-title">◆ 악! 기합 해병이 되고 싶어!</span>
+        <div class="toolbar">
 
-    <div class="layout-container">
-        <div class="left-panel">
-            <h3>소스 코드 (.ak)</h3>
-            <textarea id="code">
-신병 받아라 악!!!!!!!악!!
+            <button class="btn btn-music" data-music="assets/musics/men_wearing_eight_point_covers.ak" disabled>♪ 팔각모 사나이</button>
+            <button class="btn btn-music" data-music="assets/musics/bravo_marine.ak" disabled>♪ 부라보 해병</button>
+            <button class="btn btn-music" data-music="assets/musics/always_a_marine.ak" disabled>♪ 영원한 해병</button>
+
+            <div class="toolbar-sep"></div>
+
+            <label class="toolbar-label">
+                테마
+                <select class="toolbar-select" id="themeSelect">
+                    <option value="red-yellow">레드 &amp; 옐로우</option>
+                    <option value="red-dark">레드 &amp; 다크</option>
+                    <option value="cherry-cream">체리 레드 &amp; 미색</option>
+                </select>
+            </label>
+
+            <label class="toolbar-label">
+                크기
+                <select class="toolbar-select" id="fontSizeSelect">
+                    <option value="12px">12</option>
+                    <option value="14px" selected>14</option>
+                    <option value="16px">16</option>
+                    <option value="18px">18</option>
+                    <option value="20px">20</option>
+                </select>
+            </label>
+
+            <div class="toolbar-sep"></div>
+
+            <input type="file" id="fileInput" accept=".ak,.txt" style="display:none">
+            <button class="btn" id="uploadBtn">▲ 불러오기</button>
+            <button class="btn" id="downloadBtn">▼ 저장</button>
+
+            <div class="toolbar-sep"></div>
+
+            <button class="btn btn-run" id="runBtn" disabled>로딩 중...</button>
+        </div>
+    </header>
+
+    <!-- ── 작업 영역 ──────────────────────────────────────────── -->
+    <div class="workspace" id="workspace">
+
+        <!-- 왼쪽: 코드 에디터 -->
+        <div class="pane pane-left" id="paneLeft">
+            <div class="pane-header">▌ 작전 명령서 (.ak)</div>
+            <div class="editor-wrap">
+                <div class="gutter" id="gutter"></div>
+                <textarea id="code" spellcheck="false" autocomplete="off"
+                          autocorrect="off" autocapitalize="off"></textarea>
+            </div>
+        </div>
+
+        <!-- 수직 드래그 핸들 (좌/우 비율) -->
+        <div class="resize-v" id="resizeV"></div>
+
+        <!-- 오른쪽 패널 -->
+        <div class="pane-right" id="paneRight">
+
+            <!-- 오른쪽 상단: 표준 입력 -->
+            <div class="pane pane-input" id="paneInput">
+                <div class="pane-header">▌ 헤이빠빠리빠</div>
+                <textarea id="input_data"
+                          placeholder="실행 전에 입력값을 미리 작성해라!"
+                          spellcheck="false"></textarea>
+            </div>
+
+            <!-- 수평 드래그 핸들 (상/하 비율) -->
+            <div class="resize-h" id="resizeH"></div>
+
+            <!-- 오른쪽 하단: 실행 결과 -->
+            <div class="pane pane-output" id="paneOutput">
+                <div class="pane-header">▌ 라이라이 차차차</div>
+                <div id="output"></div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   DOM 레퍼런스
+═══════════════════════════════════════════════════════════════ */
+const runBtn    = document.getElementById('runBtn');
+const codeEl    = document.getElementById('code');
+const gutterEl  = document.getElementById('gutter');
+const outputEl  = document.getElementById('output');
+const paneLeft  = document.getElementById('paneLeft');
+const paneInput = document.getElementById('paneInput');
+const paneRight = document.getElementById('paneRight');
+const workspace = document.getElementById('workspace');
+const resizeV   = document.getElementById('resizeV');
+const resizeH   = document.getElementById('resizeH');
+const musicBtns = document.querySelectorAll('.btn-music');
+
+/* ═══════════════════════════════════════════════════════════════
+   기본 코드 (Hello World - "악! 기합!" 출력)
+═══════════════════════════════════════════════════════════════ */
+codeEl.value = `신병 받아라 악!!!!!!!악!!
 신병 받아라 악!악악!
 신병 받아라 악!악악!!!!!!!!
 신병 받아라 악!악!악!
@@ -78,64 +546,81 @@
 아쎄이 아쎄이 역돌격
 아쎄이 아쎄이!!!!!!!!!! 돌격
 라이라이 차차차
-아쎄이 아쎄이 역돌격</textarea>
+아쎄이 아쎄이 역돌격`;
 
-            <h3>헤이빠빠리빠</h3>
-            <textarea id="input_data" placeholder="입력값이 필요할 경우 미리 작성하세요."></textarea>
+/* ═══════════════════════════════════════════════════════════════
+   오디오 큐 (WAV 순차 재생)
+═══════════════════════════════════════════════════════════════ */
+let _audioCtx = null;
+function getAudioCtx() {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
+}
 
-            <button id="runBtn" disabled>인터프리터 로딩 중...</button>
-        </div>
+let _wavQueue = [];
+window.marineQueueWav = function(uint8array) {
+    _wavQueue.push(new Uint8Array(uint8array).buffer);
+};
 
-        <div class="right-panel">
-            <h3>실행 결과</h3>
-            <div id="output"></div>
-        </div>
-    </div>
+async function playWavQueue() {
+    const ctx = getAudioCtx();
+    for (const buf of _wavQueue) {
+        try {
+            await new Promise(function(resolve, reject) {
+                ctx.decodeAudioData(buf, function(ab) {
+                    const src = ctx.createBufferSource();
+                    src.buffer = ab;
+                    src.connect(ctx.destination);
+                    src.onended = resolve;
+                    src.start(0);
+                }, reject);
+            });
+        } catch(e) { console.error('오디오 재생 실패:', e); }
+    }
+    _wavQueue = [];
+}
 
-    <script>
-        let pyodide;
-        let interpreterCode = "";
+/* ═══════════════════════════════════════════════════════════════
+   Pyodide & 인터프리터 로딩
+═══════════════════════════════════════════════════════════════ */
+let pyodide;
+let interpreterCode = '';
 
-        async function main() {
-            pyodide = await loadPyodide();
-            
-            try {
-                const response = await fetch('./interpreter.py');
-                if (!response.ok) throw new Error("인터프리터 파일을 찾을 수 없다!");
-                
-                // 1. 서버(Live Server)로부터 supply.py 파일의 내용을 비동기로 가져오기
-                const supplyResponse = await fetch('supply.py');
-                const supplyCode = await supplyResponse.text();
+async function main() {
+    pyodide = await loadPyodide();
+    try {
+        const response = await fetch('./interpreter.py');
+        if (!response.ok) throw new Error('인터프리터 파일을 찾을 수 없다!');
 
-                // 2. Pyodide의 가상 파일 시스템(FS)에 supply.py 파일 써주기 (핵심!)
-                pyodide.FS.writeFile('supply.py', supplyCode);
+        pyodide.FS.mkdir('modules');
+        pyodide.FS.writeFile('modules/__init__.py', await (await fetch('modules/__init__.py')).text());
+        pyodide.FS.writeFile('modules/supply.py',   await (await fetch('modules/supply.py')).text());
+        pyodide.FS.writeFile('modules/music.py',    await (await fetch('modules/music.py')).text());
 
-                let rawCode = await response.text();
-                
-                // [기합찬 팁] 웹 환경에서는 CLI 실행 블록이 돌면 프로그램이 뻗어버리니까, 
-                // if __name__ == "__main__": 부분을 if False: 로 치환해서 강제로 비활성화한다!
-                interpreterCode = rawCode.replace('if __name__ == "__main__":', 'if False:');
-                
-                document.getElementById("runBtn").disabled = false;
-                document.getElementById("runBtn").innerText = "실행한다!";
-            } catch (e) {
-                document.getElementById("runBtn").innerText = "로딩 실패! 기열!";
-                console.error("인터프리터 로드 에러:", e);
-                document.getElementById("output").innerText = "인터프리터를 불러오지 못했다! 기열!";
-            }
-        }
-        main();
+        const raw = await response.text();
+        interpreterCode = raw.replace('if __name__ == "__main__":', 'if False:');
 
-        const webWrapperCode = `
+        runBtn.disabled = false;
+        runBtn.innerText = '▶ 실행한다!';
+        musicBtns.forEach(b => b.disabled = false);
+    } catch(e) {
+        runBtn.innerText = '로딩 실패!';
+        console.error('인터프리터 로드 에러:', e);
+        outputEl.innerText = '인터프리터를 불러오지 못했다! 기열!';
+    }
+}
+main();
+
+const webWrapperCode = `
 import sys
 import io
 
 def run_in_browser(code_str, input_str):
     old_stdout = sys.stdout
-    old_stdin = sys.stdin
+    old_stdin  = sys.stdin
     sys.stdout = io.StringIO()
-    sys.stdin = io.StringIO(input_str)
-    
+    sys.stdin  = io.StringIO(input_str)
     try:
         interpreter = MarineLangInterpreter(code_str)
         interpreter.run()
@@ -144,31 +629,216 @@ def run_in_browser(code_str, input_str):
         result = str(e)
     finally:
         sys.stdout = old_stdout
-        sys.stdin = old_stdin
-        
+        sys.stdin  = old_stdin
     return result
 `;
 
-        document.getElementById("runBtn").addEventListener("click", async () => {
-            const codeStr = document.getElementById("code").value;
-            const inputStr = document.getElementById("input_data").value;
-            const outputDiv = document.getElementById("output");
-            
-            outputDiv.innerHTML = "<span class='loading'>실행 중...</span>";
+/* ═══════════════════════════════════════════════════════════════
+   실행
+═══════════════════════════════════════════════════════════════ */
+runBtn.addEventListener('click', async () => {
+    _wavQueue = [];
+    const codeStr  = codeEl.value;
+    const inputStr = document.getElementById('input_data').value;
 
-            try {
-                await pyodide.runPythonAsync(interpreterCode + "\n\n" + webWrapperCode);
-                
-                const runFunc = pyodide.globals.get('run_in_browser');
-                const result = runFunc(codeStr, inputStr);
-                
-                outputDiv.innerText = result;
-                
-                runFunc.destroy();
-            } catch (err) {
-                outputDiv.innerText = "시스템 오류:\n" + err;
-            }
-        });
-    </script>
+    outputEl.innerHTML = "<span class='loading'>▷ 실행 중...</span>";
+    runBtn.disabled = true;
+    musicBtns.forEach(b => b.disabled = true);
+
+    try {
+        await pyodide.runPythonAsync(interpreterCode + '\n\n' + webWrapperCode);
+        const runFunc = pyodide.globals.get('run_in_browser');
+        const result  = runFunc(codeStr, inputStr);
+        outputEl.innerText = result;
+        runFunc.destroy();
+        await playWavQueue();
+    } catch(err) {
+        outputEl.innerText = '시스템 오류:\n' + err;
+    } finally {
+        runBtn.disabled = false;
+        musicBtns.forEach(b => b.disabled = false);
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   줄 번호
+═══════════════════════════════════════════════════════════════ */
+function updateGutter() {
+    const count = codeEl.value.split('\n').length;
+    let html = '';
+    for (let i = 1; i <= count; i++) {
+        html += '<div class="gutter-line">' + i + '</div>';
+    }
+    gutterEl.innerHTML = html;
+}
+
+codeEl.addEventListener('input', updateGutter);
+codeEl.addEventListener('scroll', () => { gutterEl.scrollTop = codeEl.scrollTop; });
+updateGutter();
+
+/* ═══════════════════════════════════════════════════════════════
+   키 처리: Tab → 4칸 공백 / '필승' + Enter → 자동 들여쓰기
+═══════════════════════════════════════════════════════════════ */
+codeEl.addEventListener('keydown', (e) => {
+    const pos  = codeEl.selectionStart;
+    const end  = codeEl.selectionEnd;
+    const text = codeEl.value;
+
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        codeEl.value = text.slice(0, pos) + '    ' + text.slice(end);
+        codeEl.selectionStart = codeEl.selectionEnd = pos + 4;
+        updateGutter();
+        return;
+    }
+
+    if (e.key === 'Enter') {
+        const lineStart   = text.lastIndexOf('\n', pos - 1) + 1;
+        const currentLine = text.substring(lineStart, pos);
+        if (currentLine.trimEnd().endsWith('필승')) {
+            e.preventDefault();
+            const indent = currentLine.match(/^[ \t]*/)[0] + '    ';
+            const ins    = '\n' + indent;
+            codeEl.value = text.slice(0, pos) + ins + text.slice(pos);
+            codeEl.selectionStart = codeEl.selectionEnd = pos + ins.length;
+            updateGutter();
+        }
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   테마 전환
+═══════════════════════════════════════════════════════════════ */
+document.getElementById('themeSelect').addEventListener('change', (e) => {
+    document.documentElement.setAttribute('data-theme', e.target.value);
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   폰트 크기
+═══════════════════════════════════════════════════════════════ */
+document.getElementById('fontSizeSelect').addEventListener('change', (e) => {
+    const sz = e.target.value;
+    codeEl.style.fontSize       = sz;
+    gutterEl.style.fontSize     = sz;
+    document.getElementById('input_data').style.fontSize = sz;
+    outputEl.style.fontSize     = sz;
+    updateGutter();
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   음악 재생
+═══════════════════════════════════════════════════════════════ */
+async function playMusicFile(path, btn) {
+    _wavQueue = [];
+    runBtn.disabled = true;
+    musicBtns.forEach(b => b.disabled = true);
+    btn.classList.add('playing');
+    outputEl.innerHTML = "<span class='loading'>♪ 연주 중...</span>";
+
+    try {
+        const res = await fetch(path);
+        if (!res.ok) throw new Error('악보 파일을 찾을 수 없다: ' + path);
+        const codeStr = await res.text();
+
+        await pyodide.runPythonAsync(interpreterCode + '\n\n' + webWrapperCode);
+        const runFunc = pyodide.globals.get('run_in_browser');
+        const result  = runFunc(codeStr, '');
+        outputEl.innerText = result.trim() ? result : '';
+        runFunc.destroy();
+        await playWavQueue();
+    } catch(err) {
+        outputEl.innerText = '오류: ' + err;
+    } finally {
+        runBtn.disabled = false;
+        musicBtns.forEach(b => b.disabled = false);
+        btn.classList.remove('playing');
+    }
+}
+
+musicBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (!pyodide || runBtn.disabled) return;
+        playMusicFile(btn.dataset.music, btn);
+    });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   저장 (다운로드)
+═══════════════════════════════════════════════════════════════ */
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const blob = new Blob([codeEl.value], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), {
+        href: url, download: 'marine.ak'
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   불러오기
+═══════════════════════════════════════════════════════════════ */
+document.getElementById('uploadBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        codeEl.value = ev.target.result;
+        updateGutter();
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   드래그 핸들로 크기 조절
+═══════════════════════════════════════════════════════════════ */
+let dragging = null;
+
+resizeV.addEventListener('mousedown', (e) => {
+    dragging = 'v';
+    resizeV.classList.add('active');
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+resizeH.addEventListener('mousedown', (e) => {
+    dragging = 'h';
+    resizeH.classList.add('active');
+    document.body.style.cursor     = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    if (dragging === 'v') {
+        const rect = workspace.getBoundingClientRect();
+        const pct  = Math.max(15, Math.min(85,
+            (e.clientX - rect.left) / rect.width * 100));
+        paneLeft.style.width = pct + '%';
+    } else {
+        const rect = paneRight.getBoundingClientRect();
+        const pct  = Math.max(10, Math.min(85,
+            (e.clientY - rect.top) / rect.height * 100));
+        paneInput.style.height = pct + '%';
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    resizeV.classList.remove('active');
+    resizeH.classList.remove('active');
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+    dragging = null;
+});
+</script>
 </body>
 </html>

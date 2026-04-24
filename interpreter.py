@@ -1,5 +1,6 @@
 import sys
-from supply import SupplyManager
+from modules.supply import SupplyManager
+from modules.music import MusicManager
 
 class MarineError(Exception):
     """해병 언어 실행 중 발생하는 오도기합짜세 에러"""
@@ -15,6 +16,7 @@ class MarineLangInterpreter:
         self.var_count = 0
         self.jumps = {}
         self.supply = SupplyManager(MarineError)
+        self.music = MusicManager(MarineError, self._parse_number)
         self._precompute_jumps()
 
     def _tokenize(self):
@@ -52,6 +54,8 @@ class MarineLangInterpreter:
                     stack.append(('IF', i, line_num, self.line_indents[line_num]))
                 elif i >= 2 and self.tokens[i-2][0] == '다시':
                     stack.append(('WHILE', i, line_num, self.line_indents[line_num]))
+                elif i >= 1 and self.tokens[i-1][0] == '있도록':
+                    stack.append(('MUSIC_BLOCK', i, line_num, self.line_indents[line_num]))
                 else:
                     raise MarineError(f"[줄 {line_num}] 구문 오류: '필승' 앞에는 '여쭤봐도 되겠습니까' 또는 '다시 알아보겠습니다'가 와야 한다! 악!")
             
@@ -123,6 +127,23 @@ class MarineLangInterpreter:
             return self.variables[token]
         else:
             return self._parse_number(token, line_num)
+
+    def _parse_musician(self, token: str):
+        """군악병N 토큰에서 순서(1부터)를 추출. 군악병 토큰이 아니면 None 반환."""
+        if token.startswith('군악병') and len(token) > 3:
+            rest = token[3:]
+            if all(c == '!' for c in rest):
+                return len(rest)
+        return None
+
+    def _parse_score_ref(self, token: str, line_num: int) -> int:
+        """숙지완료하였습니다N 토큰에서 악보 순서(1부터)를 추출."""
+        prefix = '숙지완료하였습니다'
+        if token.startswith(prefix):
+            rest = token[len(prefix):]
+            if rest and all(c == '!' for c in rest):
+                return len(rest)
+        raise MarineError(f"[줄 {line_num}] 구문 오류: '{token}'은 올바른 악보 번호 표기가 아니다!")
 
     def run(self):
         """인터프리터 실행 (돌격!)"""
@@ -279,6 +300,84 @@ class MarineLangInterpreter:
                     pc += 4
                     continue
                     
+                # 10. 군악대 도열: 군악대 도열 (정수)
+                if token == '군악대' and pc + 1 < len(self.tokens) and self.tokens[pc+1][0] == '도열':
+                    if pc + 2 >= len(self.tokens):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '군악대 도열' 뒤에 정수가 오지 않았다!")
+                    count = self._parse_number(self.tokens[pc+2][0], line_num)
+                    self.music.form_band(count, line_num)
+                    pc += 3
+                    continue
+
+                # 11. 군악대! 명령어
+                if token == '군악대!':
+                    if pc + 1 >= len(self.tokens):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '군악대!' 뒤에 명령어가 없다!")
+                    cmd = self.tokens[pc+1][0]
+                    if cmd == '연주' and pc + 2 < len(self.tokens) and self.tokens[pc+2][0] == '시작':
+                        self.music.play(line_num)
+                        pc += 3
+                        continue
+                    elif cmd == '총원' and pc + 2 < len(self.tokens) and self.tokens[pc+2][0] == '헤쳐':
+                        self.music.dismiss(line_num)
+                        pc += 3
+                        continue
+                    elif cmd == '대기하겠습니다':
+                        if pc + 2 >= len(self.tokens):
+                            raise MarineError(f"[줄 {line_num}] 구문 오류: '대기하겠습니다' 뒤에 정수가 오지 않았다!")
+                        seconds = self._parse_number(self.tokens[pc+2][0], line_num)
+                        self.music.set_delay(seconds, line_num)
+                        pc += 3
+                        continue
+                    else:
+                        # 악기 설정: 군악대! (악기)... 준비
+                        instruments = []
+                        j = pc + 1
+                        while j < len(self.tokens) and self.tokens[j][0] != '준비':
+                            instruments.append(self.tokens[j][0])
+                            j += 1
+                        if j >= len(self.tokens):
+                            raise MarineError(f"[줄 {line_num}] 구문 오류: '군악대! ... 준비'에서 '준비'가 없다!")
+                        self.music.set_instruments(instruments, line_num)
+                        pc = j + 1
+                        continue
+
+                # 12. 악보 저장: 소중히 간직할 수 있도록 필승 ... 받아쓰
+                if token == '소중히':
+                    필승_idx = pc + 4
+                    if (필승_idx >= len(self.tokens) or
+                            self.tokens[pc+1][0] != '간직할' or
+                            self.tokens[pc+2][0] != '수' or
+                            self.tokens[pc+3][0] != '있도록' or
+                            self.tokens[필승_idx][0] != '필승'):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '소중히 간직할 수 있도록 필승' 형식이 올바르지 않다!")
+                    받아쓰_idx = self.jumps[필승_idx]
+                    block_tokens = self.tokens[필승_idx+1:받아쓰_idx]
+                    self.music.save_score(block_tokens, line_num)
+                    pc = 받아쓰_idx + 1
+                    continue
+
+                # 13. 악보 숙지: 군악병N 제대로 숙지할 수 있도록 필승 숙지완료하였습니다M 받아쓰
+                musician_idx = self._parse_musician(token)
+                if musician_idx is not None:
+                    필승_idx = pc + 5
+                    if (필승_idx >= len(self.tokens) or
+                            self.tokens[pc+1][0] != '제대로' or
+                            self.tokens[pc+2][0] != '숙지할' or
+                            self.tokens[pc+3][0] != '수' or
+                            self.tokens[pc+4][0] != '있도록' or
+                            self.tokens[필승_idx][0] != '필승'):
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: '{token} 제대로 숙지할 수 있도록 필승' 형식이 올바르지 않다!")
+                    받아쓰_idx = self.jumps[필승_idx]
+                    block_tokens = self.tokens[필승_idx+1:받아쓰_idx]
+                    if len(block_tokens) != 1:
+                        raise MarineError(f"[줄 {line_num}] 구문 오류: 악보 숙지 블록에는 악보 번호 하나만 있어야 한다!")
+                    score_ref_token, score_ref_line = block_tokens[0]
+                    score_idx = self._parse_score_ref(score_ref_token, score_ref_line)
+                    self.music.learn_score(musician_idx, score_idx, line_num)
+                    pc = 받아쓰_idx + 1
+                    continue
+
                 # 처리되지 않은 토큰은 건너뜀
                 pc += 1
                 
