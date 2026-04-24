@@ -594,7 +594,7 @@ async function main() {
         if (!response.ok) throw new Error('인터프리터 파일을 찾을 수 없다!');
 
         pyodide.FS.mkdir('modules');
-        pyodide.FS.writeFile('modules/__init__.py', await (await fetch('modules/__init__.py')).text());
+        pyodide.FS.writeFile('modules/__init__.py', '');
         pyodide.FS.writeFile('modules/supply.py',   await (await fetch('modules/supply.py')).text());
         pyodide.FS.writeFile('modules/music.py',    await (await fetch('modules/music.py')).text());
 
