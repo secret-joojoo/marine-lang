@@ -1,6 +1,5 @@
 import math
 import wave
-import struct
 import io
 import array
 import time
@@ -87,6 +86,7 @@ class MusicManager:
         self.instruments = []       # 군악병별 악기
         self.assigned_scores = []   # 군악병별 악보
         self.pending_delay = None   # 대기하겠습니다로 설정된 초
+        self._browser_time = 0.0   # 브라우저 WebAudio 스케줄링용 누적 시간(초)
 
     # ── 군악대 도열 ────────────────────────────────────────────
 
@@ -192,8 +192,8 @@ class MusicManager:
             delay = self.pending_delay
             self.pending_delay = None
             try:
-                import js  # Pyodide 감지: 브라우저에서는 무음 WAV를 큐에 넣어 대기 구현
-                self._play_wav(self._make_silence_wav(delay))
+                import js  # Pyodide 감지: 브라우저에서는 시간 오프셋만 앞당김
+                self._browser_time += delay
             except ModuleNotFoundError:
                 time.sleep(delay)
         self._mix_and_play(self.assigned_scores, self.instruments)
@@ -358,7 +358,47 @@ class MusicManager:
             out.append(v / total_amp * env)
         return out
 
+    def _schedule_browser(self, scores, instruments):
+        """브라우저 전용: WAV 생성 없이 음표 파라미터를 JS에 전달해 WebAudio로 합성"""
+        import js
+        import json as _json
+
+        max_duration = 0.0
+        for score, instrument in zip(scores, instruments):
+            profile  = INSTRUMENT_PROFILES.get(instrument, _DEFAULT_PROFILE)
+            beat_sec = 60.0 / score['bpm']
+            # harmonics는 JSON 문자열로 전달 — Pyodide 프록시 변환 문제 없이 안전
+            harmonics_json = _json.dumps([[h, a] for h, a in profile['harmonics']])
+            t = 0.0
+            for note, beat in score['notes']:
+                duration = beat * beat_sec
+                if not note['is_rest']:
+                    freq = self._note_to_freq(note['semitone'], note['octave'])
+                    js.marineScheduleNote(
+                        self._browser_time + t,
+                        duration,
+                        freq,
+                        harmonics_json,
+                        profile['attack'],
+                        profile['decay'],
+                        profile['sustain'],
+                        profile['release'],
+                        profile['vibrato_rate'],
+                        profile['vibrato_depth'],
+                    )
+                t += duration
+            max_duration = max(max_duration, t)
+
+        self._browser_time += max_duration
+
     def _mix_and_play(self, scores, instruments):
+        try:
+            import js  # Pyodide 감지: 브라우저에서는 WebAudio 스케줄링으로 처리
+            self._schedule_browser(scores, instruments)
+            return
+        except ModuleNotFoundError:
+            pass
+
         all_samples = [self._generate_samples(s, inst)
                        for s, inst in zip(scores, instruments)]
         max_len = max(len(s) for s in all_samples)
@@ -389,28 +429,9 @@ class MusicManager:
 
         self._play_wav(buf.getvalue())
 
-    def _make_silence_wav(self, seconds):
-        n = int(SAMPLE_RATE * seconds)
-        silent = array.array('h', [0] * n)
-        buf = io.BytesIO()
-        with wave.open(buf, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(silent.tobytes())
-        return buf.getvalue()
 
     def _play_wav(self, wav_bytes):
-        # 1순위: Pyodide (브라우저) — WAV를 큐에 쌓아 순차 재생
-        try:
-            import js
-            from pyodide.ffi import to_js
-            js.marineQueueWav(to_js(wav_bytes))
-            return
-        except ModuleNotFoundError:
-            pass
-
-        # 2순위: Windows 네이티브
+        # Windows 네이티브
         if platform.system() == 'Windows':
             import winsound
             winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)

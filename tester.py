@@ -18,7 +18,7 @@ def run_tests(test_dir="tests"):
         dir = os.path.join(test_dir, module)
         test_files = glob.glob(os.path.join(dir, "*.ak"))
 
-        print(f"\n[{module.upper()} 테스트 실시!!]")
+        print(f"[{module.upper()} 테스트 실시!!]")
 
         passed = 0
         failed = 0
@@ -70,7 +70,7 @@ def run_tests(test_dir="tests"):
         if failed == 0:
             print(f"✅ {module.upper()} 기합!")
     
-    print("\n" + "===" * 15)
+    print("===" * 15)
     print("기합 해병 테스트 결과 보고")
     print("===" * 15)
 

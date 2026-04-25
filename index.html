@@ -549,7 +549,7 @@ codeEl.value = `신병 받아라 악!!!!!!!악!!
 아쎄이 아쎄이 역돌격`;
 
 /* ═══════════════════════════════════════════════════════════════
-   오디오 큐 (WAV 순차 재생)
+   오디오 컨텍스트
 ═══════════════════════════════════════════════════════════════ */
 let _audioCtx = null;
 function getAudioCtx() {
@@ -558,27 +558,112 @@ function getAudioCtx() {
     return _audioCtx;
 }
 
-let _wavQueue = [];
-window.marineQueueWav = function(uint8array) {
-    _wavQueue.push(new Uint8Array(uint8array).buffer);
+/* ═══════════════════════════════════════════════════════════════
+   WebAudio 음표 스케줄링
+═══════════════════════════════════════════════════════════════ */
+let _noteQueue  = [];
+let _compressor = null;
+
+function _getOutputNode(ctx) {
+    if (!_compressor || _compressor.context !== ctx) {
+        _compressor = ctx.createDynamicsCompressor();
+        _compressor.threshold.value = -6;
+        _compressor.knee.value      =  6;
+        _compressor.ratio.value     =  4;
+        _compressor.attack.value    =  0.003;
+        _compressor.release.value   =  0.15;
+        _compressor.connect(ctx.destination);
+    }
+    return _compressor;
+}
+
+window.marineScheduleNote = function(startTime, duration, freq, harmonicsJson, attack, decay, sustain, release, vibRate, vibDepth) {
+    _noteQueue.push({
+        startTime: Number(startTime),
+        duration:  Number(duration),
+        freq:      Number(freq),
+        harmonics: JSON.parse(harmonicsJson),   // JSON 문자열 → 순수 JS 배열 (PyProxy 없음)
+        attack:    Number(attack),
+        decay:     Number(decay),
+        sustain:   Number(sustain),
+        release:   Number(release),
+        vibRate:   Number(vibRate),
+        vibDepth:  Number(vibDepth),
+    });
 };
 
-async function playWavQueue() {
-    const ctx = getAudioCtx();
-    for (const buf of _wavQueue) {
-        try {
-            await new Promise(function(resolve, reject) {
-                ctx.decodeAudioData(buf, function(ab) {
-                    const src = ctx.createBufferSource();
-                    src.buffer = ab;
-                    src.connect(ctx.destination);
-                    src.onended = resolve;
-                    src.start(0);
-                }, reject);
-            });
-        } catch(e) { console.error('오디오 재생 실패:', e); }
+function _scheduleWebAudioNote(ctx, t0, note) {
+    const start = t0 + note.startTime;
+    const end   = start + note.duration;
+    const dur   = note.duration;
+
+    // 음표가 짧을 때 ADSR 페이즈가 겹치지 않도록 비례 축소
+    const envTotal = note.attack + note.decay + note.release;
+    const scale    = envTotal > dur * 0.95 ? (dur * 0.95) / envTotal : 1.0;
+    const att = note.attack  * scale;
+    const dec = note.decay   * scale;
+    const rel = note.release * scale;
+
+    const atkEnd   = start + att;
+    const decEnd   = atkEnd + dec;
+    const relStart = end - rel;
+
+    const masterGain = ctx.createGain();
+    masterGain.connect(_getOutputNode(ctx));
+
+    masterGain.gain.setValueAtTime(0, start);
+    masterGain.gain.linearRampToValueAtTime(1.0,         atkEnd);
+    masterGain.gain.linearRampToValueAtTime(note.sustain, decEnd);
+    masterGain.gain.setValueAtTime(note.sustain, Math.max(decEnd, relStart));
+    masterGain.gain.linearRampToValueAtTime(0, end);
+
+    const totalAmp = note.harmonics.reduce((s, h) => s + h[1], 0);
+
+    for (const [harmonic, amplitude] of note.harmonics) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = note.freq * harmonic;
+
+        if (note.vibRate > 0 && note.vibDepth > 0) {
+            const effectiveDepth = note.vibDepth * Math.min(1.0, 440.0 / (note.freq * harmonic));
+            const lfo      = ctx.createOscillator();
+            const lfoGain  = ctx.createGain();
+            const vibOnset = ctx.createGain();
+            lfo.type = 'sine';
+            lfo.frequency.value = note.vibRate;
+            lfoGain.gain.value  = note.freq * harmonic * effectiveDepth;
+            // 바이브라토는 음표 길이의 30% 또는 최대 0.25초에 걸쳐 fade-in
+            const onsetDur = Math.min(dur * 0.3, 0.25);
+            vibOnset.gain.setValueAtTime(0, start);
+            vibOnset.gain.linearRampToValueAtTime(1.0, start + onsetDur);
+            lfo.connect(lfoGain);
+            lfoGain.connect(vibOnset);
+            vibOnset.connect(osc.frequency);
+            lfo.start(start);
+            lfo.stop(end + 0.05);
+        }
+
+        const harmGain = ctx.createGain();
+        harmGain.gain.value = amplitude / totalAmp;
+        osc.connect(harmGain);
+        harmGain.connect(masterGain);
+        osc.start(start);
+        osc.stop(end + 0.05);
     }
-    _wavQueue = [];
+}
+
+async function playScheduledNotes() {
+    if (_noteQueue.length === 0) return;
+    const ctx = getAudioCtx();
+    const t0  = ctx.currentTime + 0.15;
+    let endTime = 0;
+    for (const note of _noteQueue) {
+        _scheduleWebAudioNote(ctx, t0, note);
+        endTime = Math.max(endTime, t0 + note.startTime + note.duration);
+    }
+    _noteQueue = [];
+    const waitMs = Math.max(0, (endTime - ctx.currentTime + 0.4) * 1000);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -637,7 +722,7 @@ def run_in_browser(code_str, input_str):
    실행
 ═══════════════════════════════════════════════════════════════ */
 runBtn.addEventListener('click', async () => {
-    _wavQueue = [];
+    _noteQueue = [];
     const codeStr  = codeEl.value;
     const inputStr = document.getElementById('input_data').value;
 
@@ -651,7 +736,7 @@ runBtn.addEventListener('click', async () => {
         const result  = runFunc(codeStr, inputStr);
         outputEl.innerText = result;
         runFunc.destroy();
-        await playWavQueue();
+        await playScheduledNotes();
     } catch(err) {
         outputEl.innerText = '시스템 오류:\n' + err;
     } finally {
@@ -729,7 +814,7 @@ document.getElementById('fontSizeSelect').addEventListener('change', (e) => {
    음악 재생
 ═══════════════════════════════════════════════════════════════ */
 async function playMusicFile(path, btn) {
-    _wavQueue = [];
+    _noteQueue = [];
     runBtn.disabled = true;
     musicBtns.forEach(b => b.disabled = true);
     btn.classList.add('playing');
@@ -745,7 +830,7 @@ async function playMusicFile(path, btn) {
         const result  = runFunc(codeStr, '');
         outputEl.innerText = result.trim() ? result : '';
         runFunc.destroy();
-        await playWavQueue();
+        await playScheduledNotes();
     } catch(err) {
         outputEl.innerText = '오류: ' + err;
     } finally {
