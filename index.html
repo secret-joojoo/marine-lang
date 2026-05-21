@@ -680,6 +680,7 @@ async function main() {
 
         pyodide.FS.mkdir('modules');
         pyodide.FS.writeFile('modules/__init__.py', '');
+        pyodide.FS.writeFile('modules/basic.py',    await (await fetch('modules/basic.py')).text());
         pyodide.FS.writeFile('modules/supply.py',   await (await fetch('modules/supply.py')).text());
         pyodide.FS.writeFile('modules/music.py',    await (await fetch('modules/music.py')).text());
 

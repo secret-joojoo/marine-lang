@@ -1,2 +1,9 @@
 __pycache__/
-modules\__pycache__
+modules/__pycache__
+converter/__pycache__
+CLAUDE.md
+guide.txt
+
+# 개발 완료될 때까지
+converter/
+docs/SIGNAL.md
